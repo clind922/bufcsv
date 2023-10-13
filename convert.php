@@ -186,7 +186,7 @@ if(!empty($_POST))
 
 			$new_row = [
 				'Kommunal',
-				mb_utf8(str_replace('_', ' ', basename($file_name, '.csv')), 'UTF-8', $enc_out), //Enhet
+				mb_utf8(str_replace(['_', 'CSV'], [' ', ''], basename($file_name, '.csv')), 'UTF-8', $enc_out), //Enhet
 				'',
 				$row[9], //Avd
 				flip_name($row[0]), //B namn
@@ -245,18 +245,17 @@ $options =
 	<!--<meta charset="utf-8">-->
 	<meta http-equiv="Content-Language" content="en"/>
 	<META NAME="ROBOTS" CONTENT="NOINDEX, NOFOLLOW">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>BUF origo csv converter</title>
+	<title><?php echo $title = 'BUF Origo CSV konverteringsverktyg'; ?></title>
 </head>
 <body>
-<h1>BUF origo csv converter</h1>
+<h1><?php echo $title; ?></h1>
 <?php
 	?>
 	<form action="" method="POST" enctype="multipart/form-data">
 		<p><input type="file" name="file[]" multiple accept="text/csv,.csv"></p>
 		<p>
-			<label for="enc_in">Kodn. in</label><select name="enc_in" id="enc_in"><?php echo str_replace('"UTF-8"', '"UTF-8" selected', $options); ?></select> /
-			<label for="enc_out">Kodn. ut</label><select name="enc_out" id="enc_out"><?php echo $options; ?></select>
+			<label for="enc_in">Kodn. in</label> <select name="enc_in" id="enc_in"><?php echo str_replace('"UTF-8"', '"UTF-8" selected', $options); ?></select> /
+			<label for="enc_out">Kodn. ut</label> <select name="enc_out" id="enc_out"><?php echo $options; ?></select>
 			<label for="separator">Separator</label>
 			<select name="separator" id="separator">
 				<option value="">Auto</option>
