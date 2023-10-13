@@ -8,54 +8,52 @@ function debug_array($array)
 		var_dump($array);
 	echo '</pre>';
 }
-
-/**
- * Quick debug
- */
-
+function mb_utf8(string $text, $enc_in, $enc_out): string
+{
+	#return iconv( "Windows-1252", "UTF-8", $text );
+	#debug_array($text);
+	#return mb_convert_encoding($text, 'UTF-8', 'ISO-8859-1');
+	return mb_convert_encoding($text, $enc_out, $enc_in);
+	if(!$encoding = mb_detect_encoding($text))
+		return $text;
+	debug_array($encoding);
+	$out =  mb_convert_encoding($text, "UTF-8", $encoding);
+	debug_array($out);
+	return $out;
+}
 function dd($data)
 {
 	debug_array($data);
 	die;
 }
-?>
-<!DOCTYPE html>
-<html>
-<head>
-	<meta charset="utf-8">
-	<meta http-equiv="Content-Language" content="en"/>
-	<META NAME="ROBOTS" CONTENT="NOINDEX, NOFOLLOW">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>BUF origo csv converter</title>
-</head>
-<body>
-<h1>BUF origo csv converter</h1>
-<?php
-	?>
-	<form action="" method="POST" enctype="multipart/form-data">
-		<input type="file" name="file[]" multiple>
-		<input type="hidden" name="confirm" value="1" />
-		<input type="submit" />
-	</form>
-<?php
+function flip_name($name) {
+	if(stristr($name, ','))
+		return implode(' ', array_map('trim', array_reverse(explode(',', $name))));
+	return $name;
+}
+
+
 if(!empty($_POST))
 {
-	echo '<hr>';
-	$phone_pattern = '/[\d-+\s]+/';
-	debug_array($_FILES);
-	foreach($_FILES['file']['name'] as $key => $name)
+	#echo '<hr>';
+	$phone_pattern = '/^[\d\-\+\s]+$/';
+	#debug_array($_FILES);
+	$enc_in = $_POST['enc_in'] ?? 'UTF-8';
+	$enc_out = $_POST['enc_out'] ?? 'UTF-8';
+	$output_formatted = [];
+	foreach($_FILES['file']['name'] as $key => $file_name)
 	{
 		if($_FILES['file']['error'][$key] != '0')
 		{
-			echo 'Upload error: ' . $name;
+			#echo 'Upload error: ' . $file_name;
 			continue;
 		}
 		$csv_path = $_FILES['file']['tmp_name'][$key];
-		debug_array($csv_path);
+		#debug_array($csv_path);
 
 		if(!$fh = fopen($csv_path, 'r'))
 		{
-			echo ('Could not open file: ' . $csv_path);
+			#echo ('Could not open file: ' . $csv_path);
 			continue;
 		}
 
@@ -67,10 +65,12 @@ if(!empty($_POST))
 
 		unlink($csv_path);
 
-		debug_array($data);
+		#debug_array($data);
 
 		$output = [];
 		$buffer = [];
+		$avd = 1;
+		$last_ord = 0;
 
 		foreach($data as $index => $row)
 		{
@@ -80,55 +80,175 @@ if(!empty($_POST))
 				// Probably a heading row, skip
 				if($row[1])
 					continue;
+				// Detect new avd from first letter (in lastname)
+				if($last_ord && ord(substr($row[0], 0, 1)) < $last_ord)
+					$avd++;
+				$last_ord = ord(substr($row[0], 0, 1));
+
 				$output[] = $buffer;
-				$buffer = [$row[0]];
+				$buffer = array_fill(0, 10, '');
+				$buffer[0] = mb_utf8($row[0], $enc_in, $enc_out); //BN
+				$buffer[1] = mb_utf8($row[2], $enc_in, $enc_out); //VHN 1
+				$buffer[2] = mb_utf8($row[4], $enc_in, $enc_out); //VHN 2
+				$buffer[9] = 'Avdelning ' . $avd;
+
 			}
-			else
+			else // Empty 1st column
 			{
 				// Look for emails
-				if(stristr($row[3], '@'))
-					$buffer[] = $row[3];
-				else
-					$buffer[] = '';
+				if($row[2] && !$buffer[3])
+				{
+					if(stristr($row[2], '@'))
+						$buffer[3] = $row[2];
+					else
+						$buffer[3] = '';
+				}
 
-				if(stristr($row[4], '@'))
-					$buffer[] = $row[4];
-				else
-					$buffer[] = '';
+
+				if($row[4] && !$buffer[4])
+				{
+					if(stristr($row[4], '@'))
+						$buffer[4] = $row[4];
+					else
+						$buffer[4] = '';
+				}
 
 				// Look for phone numbers
-				if(preg_match($phone_pattern, $row[5]))
-					$buffer[] = $row[5];
-				else
-					$buffer[] = '';
+				//VHT 1
+				if($row[2] && !$buffer[5])
+				{
+					if(preg_match($phone_pattern, $row[2]))
+						$buffer[5] = $row[2];
+					else
+						$buffer[5] = '';
+				}
 
-				if(preg_match($phone_pattern, $row[6]))
-					$buffer[] = $row[6];
-				else
-					$buffer[] = '';
+				// Alt nr
+				if($row[3] && !$buffer[6])
+				{
+					if(preg_match($phone_pattern, $row[3]))
+						$buffer[6] = $row[3];
+					else
+						$buffer[6] = '';
+				}
+
+				//VHT 2
+
+				if($row[4] && !$buffer[7])
+				{
+					if(preg_match($phone_pattern, $row[4]))
+						$buffer[7] = $row[4];
+					else
+						$buffer[7] = '';
+				}
+
+				// Alt nr
+				if($row[5] && !$buffer[8])
+				{
+					if(preg_match($phone_pattern, $row[5]))
+						$buffer[8] = $row[5];
+					else
+						$buffer[8] = '';
+				}
 			}
 		}
+		// Empty final buffer
 		if($buffer)
 			$output[] = $buffer;
 
-		debug_array($output);
+		#debug_array($output);
 
-		#header("Content-Encoding: UTF-8");
+		foreach($output as $row)
+		{
+			if(empty($row))
+				continue;
+			//Regiform	Förskola/enhet	Unik kod	Avdelning	Barnets namn	Pojke/Flicka	Vårdnadshavarens namn 1	Mailadress vårdnadshavare 1	Vårdnadshavarens namn 2	Mailadress vårdnadshavare 2	Tel vårdnadshavare 1	Tel vårdnadshavare 2
+
+			// Use backup tel if empty
+			if(!$row[5] && $row[6])
+				$row[5] = $row[6];
+			if(!$row[7] && $row[8])
+				$row[7] = $row[8];
+
+			$new_row = [
+				'Kommunal',
+				mb_utf8(str_replace('_', ' ', basename($file_name, '.csv')), 'UTF-8', $enc_out), //Enhet
+				'',
+				$row[9], //Avd
+				flip_name($row[0]), //B namn
+				mb_utf8('Okänt', 'UTF-8', $enc_out), //Kön
+				flip_name($row[1]), //VH1 namn
+				$row[3], //VH1 email
+				flip_name($row[2]), //VH2 namn
+				$row[4], //VH2 email
+				$row[5], //VH1 tel
+				$row[7], //VH2 tel
+			];
+
+			// VH1 tel == VH2 tel
+			if($new_row[10] == $new_row[11])
+			{
+				//VH1 tel alt
+				if($row[6] && $row[6] != $new_row[11])
+					$new_row[10] = $row[6];
+				//VH2 tel alt
+				elseif($row[8] && $row[8] != $new_row[10])
+					$new_row[11] = $row[8];
+			}
+			$output_formatted[] = $new_row;
+		}
+
+
 		#header("Content-type: application/csv; charset=utf-8;sep=" . $delimiter)
 
-		/*
+		if($_GET['debug'] ?? FALSE)
+			debug_array($output_formatted);
+	}
+	#debug_array($output_formatted);
+	#header("Content-Encoding: " . $enc_out);
+	if(!($_GET['debug'] ?? FALSE))
+	{
 		header("Content-Type: application/vnd.ms-excel");
-		header("Content-Disposition: attachment; filename=" . $name . '_' . str_replace([' ', ':'], ['_', ''], date('Y-m-d H:i:s')) . ".csv");
+		header("Content-Disposition: attachment; filename=" . 'buf_origo_lista_' . str_replace([' ', ':'], ['_', ''], date('Y-m-d H:i:s')) . ".csv");
 		header("Pragma: no-cache");
 		header("Expires: 0");
 		header("HTTP/1.1 200 OK");
-		#html_entity_decode
-		foreach($output as $row)
-			echo implode("\t", $row) . PHP_EOL;*/
-
-		echo '<hr>';
+		foreach($output_formatted as $row)
+			echo implode(",", $row) . PHP_EOL;
+		exit;
 	}
 }
+$options =
+	'<option value="Windows-1252">Windows-1252</option>' .
+	'<option value="ISO-8859-1">ISO-8859-1</option>' .
+	'<option value="UTF-8">UTF-8</option>' .
+	'<option value="ASCII">ASCII</option>' .
+'';
+?>
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+	<!--<meta charset="utf-8">-->
+	<meta http-equiv="Content-Language" content="en"/>
+	<META NAME="ROBOTS" CONTENT="NOINDEX, NOFOLLOW">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>BUF origo csv converter</title>
+</head>
+<body>
+<h1>BUF origo csv converter</h1>
+<?php
+	?>
+	<form action="" method="POST" enctype="multipart/form-data">
+		<p><input type="file" name="file[]" multiple accept="text/csv,.csv"></p>
+		<p>
+			<label for="enc_in">Kodn. in</label><select name="enc_in" id="enc_in"><?php echo $options; ?></select> /
+			<label for="enc_out">Kodn. ut</label><select name="enc_out" id="enc_out"><?php echo $options; ?></select>
+		</p>
+		<input type="hidden" name="confirm" value="1" />
+		<input type="submit" />
+	</form>
+<?php
+
 ?>
 </body>
 </html>
