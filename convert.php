@@ -1,4 +1,5 @@
 <?php
+ini_set('date.timezone', 'Europe/Stockholm');
 function debug_array($array)
 {
 	echo '<pre class="error">';
@@ -31,7 +32,18 @@ function flip_name($name) {
 		return implode(' ', array_map('trim', array_reverse(explode(',', $name))));
 	return $name;
 }
+function detect_delimiter($csvFile)
+{
+	$delimiters = [';' => 0, ',' => 0, "\t" => 0, "|" => 0];
 
+	$handle = fopen($csvFile, "r");
+	$firstLine = fgets($handle);
+	fclose($handle);
+	foreach ($delimiters as $delimiter => &$count)
+		$count = count(str_getcsv($firstLine, $delimiter));
+
+	return array_search(max($delimiters), $delimiters);
+}
 
 if(!empty($_POST))
 {
@@ -40,32 +52,35 @@ if(!empty($_POST))
 	#debug_array($_FILES);
 	$enc_in = $_POST['enc_in'] ?? 'UTF-8';
 	$enc_out = $_POST['enc_out'] ?? 'UTF-8';
+	$separator = $_POST['separator'] ?? NULL;
 	$output_formatted = [];
 	foreach($_FILES['file']['name'] as $key => $file_name)
 	{
 		if($_FILES['file']['error'][$key] != '0')
 		{
-			#echo 'Upload error: ' . $file_name;
+			if(count($_FILES['file']['name']) == 1)
+				die('Upload error: ' . $file_name);
 			continue;
 		}
 		$csv_path = $_FILES['file']['tmp_name'][$key];
-		#debug_array($csv_path);
 
 		if(!$fh = fopen($csv_path, 'r'))
 		{
-			#echo ('Could not open file: ' . $csv_path);
+			if(count($_FILES['file']['name']) == 1)
+				die ('Could not open file: ' . $csv_path);
 			continue;
 		}
+
+		if(empty($separator))
+			$separator = detect_delimiter($csv_path);
 
 		$i = 0;
 		$data = [];
 		$all_p_data = [];
-		while($csv = fgetcsv($fh, 0, ","))
+		while($csv = fgetcsv($fh, 0, $separator))
 			$data[] = $csv;
 
 		unlink($csv_path);
-
-		#debug_array($data);
 
 		$output = [];
 		$buffer = [];
@@ -104,7 +119,6 @@ if(!empty($_POST))
 						$buffer[3] = '';
 				}
 
-
 				if($row[4] && !$buffer[4])
 				{
 					if(stristr($row[4], '@'))
@@ -114,6 +128,7 @@ if(!empty($_POST))
 				}
 
 				// Look for phone numbers
+
 				//VHT 1
 				if($row[2] && !$buffer[5])
 				{
@@ -133,7 +148,6 @@ if(!empty($_POST))
 				}
 
 				//VHT 2
-
 				if($row[4] && !$buffer[7])
 				{
 					if(preg_match($phone_pattern, $row[4]))
@@ -214,7 +228,7 @@ if(!empty($_POST))
 		header("Expires: 0");
 		header("HTTP/1.1 200 OK");
 		foreach($output_formatted as $row)
-			echo implode(",", $row) . PHP_EOL;
+			echo implode(',', $row) . PHP_EOL;
 		exit;
 	}
 }
@@ -241,8 +255,15 @@ $options =
 	<form action="" method="POST" enctype="multipart/form-data">
 		<p><input type="file" name="file[]" multiple accept="text/csv,.csv"></p>
 		<p>
-			<label for="enc_in">Kodn. in</label><select name="enc_in" id="enc_in"><?php echo $options; ?></select> /
+			<label for="enc_in">Kodn. in</label><select name="enc_in" id="enc_in"><?php echo str_replace('"UTF-8"', '"UTF-8" selected', $options); ?></select> /
 			<label for="enc_out">Kodn. ut</label><select name="enc_out" id="enc_out"><?php echo $options; ?></select>
+			<label for="separator">Separator</label>
+			<select name="separator" id="separator">
+				<option value="">Auto</option>
+				<option value=",">KOMMA (,)</option>
+				<option value=";">SEMI-KOLON (;)</option>
+				<option value="\t">TAB (\t)</option>
+			</select>
 		</p>
 		<input type="hidden" name="confirm" value="1" />
 		<input type="submit" />
