@@ -11,9 +11,6 @@ function debug_array($array)
 }
 function mb_utf8(string $text, $enc_in, $enc_out): string
 {
-	#return iconv( "Windows-1252", "UTF-8", $text );
-	#debug_array($text);
-	#return mb_convert_encoding($text, 'UTF-8', 'ISO-8859-1');
 	return mb_convert_encoding($text, $enc_out, $enc_in);
 	if(!$encoding = mb_detect_encoding($text))
 		return $text;
@@ -47,9 +44,7 @@ function detect_delimiter($csvFile)
 
 if(!empty($_POST))
 {
-	#echo '<hr>';
 	$phone_pattern = '/^[\d\-\+\s]+$/';
-	#debug_array($_FILES);
 	$enc_in = $_POST['enc_in'] ?? 'UTF-8';
 	$enc_out = $_POST['enc_out'] ?? 'UTF-8';
 	$separator = $_POST['separator'] ?? NULL;
@@ -80,6 +75,7 @@ if(!empty($_POST))
 		while($csv = fgetcsv($fh, 0, $separator))
 			$data[] = $csv;
 
+		// Delete the temp file
 		unlink($csv_path);
 
 		$output = [];
@@ -170,8 +166,6 @@ if(!empty($_POST))
 		if($buffer)
 			$output[] = $buffer;
 
-		#debug_array($output);
-
 		foreach($output as $row)
 		{
 			if(empty($row))
@@ -213,15 +207,15 @@ if(!empty($_POST))
 		}
 
 
-		#header("Content-type: application/csv; charset=utf-8;sep=" . $delimiter)
 
 		if($_GET['debug'] ?? FALSE)
 			debug_array($output_formatted);
 	}
-	#debug_array($output_formatted);
-	#header("Content-Encoding: " . $enc_out);
+
 	if(!($_GET['debug'] ?? FALSE))
 	{
+		#header("Content-type: application/csv; charset=utf-8;sep=" . $delimiter)
+		#header("Content-Encoding: " . $enc_out);
 		header("Content-Type: application/vnd.ms-excel");
 		header("Content-Disposition: attachment; filename=" . 'buf_origo_lista_' . str_replace([' ', ':'], ['_', ''], date('Y-m-d H:i:s')) . ".csv");
 		header("Pragma: no-cache");
@@ -254,9 +248,9 @@ $options =
 	<form action="" method="POST" enctype="multipart/form-data">
 		<p><input type="file" name="file[]" multiple accept="text/csv,.csv"></p>
 		<p>
-			<label for="enc_in">Kodn. in</label> <select name="enc_in" id="enc_in"><?php echo str_replace('"UTF-8"', '"UTF-8" selected', $options); ?></select> /
-			<label for="enc_out">Kodn. ut</label> <select name="enc_out" id="enc_out"><?php echo $options; ?></select>
-			<label for="separator">Separator</label>
+			<label for="enc_in">Kodn. in:</label> <select name="enc_in" id="enc_in"><?php echo str_replace('"UTF-8"', '"UTF-8" selected', $options); ?></select> /
+			<label for="enc_out">Kodn. ut:</label> <select name="enc_out" id="enc_out"><?php echo $options; ?></select>
+			<label for="separator">CSV-separator:</label>
 			<select name="separator" id="separator">
 				<option value="">Auto</option>
 				<option value=",">KOMMA (,)</option>
